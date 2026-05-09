@@ -50,19 +50,36 @@ export class GameEngine {
   }
 
   private setupScene(): void {
-    // Camera setup - isometric view
-    const camera = new BABYLON.UniversalCamera('camera', new BABYLON.Vector3(6, 10, 6));
+    // Camera setup - ArcRotateCamera for orbit-style controls
+    // alpha = horizontal rotation (around Y axis)
+    // beta = vertical rotation (from top)
+    // radius = distance from target
+    const camera = new BABYLON.ArcRotateCamera(
+      'camera',
+      Math.PI / 4,           // alpha - 45° horizontal
+      Math.PI / 3.5,         // beta - tilt down
+      14,                    // radius - distance
+      BABYLON.Vector3.Zero(), // target - board center
+      this.scene
+    );
     camera.attachControl(this.canvas, true);
-    camera.inertia = 0.7;
-    camera.angularSensibility = 500;
     camera.minZ = 0.1;
     camera.maxZ = 500;
 
-    // Target the center of the board
-    camera.setTarget(BABYLON.Vector3.Zero());
+    // Limits to prevent flipping under the board
+    camera.lowerBetaLimit = 0.1;
+    camera.upperBetaLimit = Math.PI / 2.1;
 
-    // Allow camera rotation with mouse
-    camera.useFramingBehavior = false;
+    // Zoom limits
+    camera.lowerRadiusLimit = 6;
+    camera.upperRadiusLimit = 30;
+
+    // Smooth controls
+    camera.inertia = 0.85;
+    camera.angularSensibilityX = 1000;
+    camera.angularSensibilityY = 1000;
+    camera.wheelPrecision = 30;
+    camera.panningSensibility = 100;
 
     // Lighting setup - 3-point lighting
     // Key light (main directional)
