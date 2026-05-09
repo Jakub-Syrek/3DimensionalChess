@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Chess Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 100%;
+      height: 100vh;
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      overflow: hidden;
+    }
+
+    #gameContainer {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #renderCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    .header {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: white;
+      z-index: 10;
+    }
+
+    .header h1 {
+      font-size: 2em;
+      margin-bottom: 5px;
+    }
+
+    .header p {
+      font-size: 0.9em;
+      opacity: 0.8;
+    }
+
+    .status {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 15px 20px;
+      border-radius: 8px;
+      z-index: 10;
+      min-width: 250px;
+    }
+
+    .status p {
+      margin: 5px 0;
+      font-size: 0.95em;
+    }
+
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      text-align: center;
+      z-index: 100;
+    }
+
+    .loading h2 {
+      margin-bottom: 20px;
+      font-size: 1.5em;
+    }
+
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 4px solid white;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <div class="header">
+      <h1>♟ 3D Chess ♟</h1>
+      <p>Standard Chess in 3D</p>
+    </div>
+
+    <canvas id="renderCanvas" touch-action="none"></canvas>
+
+    <div class="status">
+      <p><strong>Current Player:</strong> <span id="currentPlayer">White</span></p>
+      <p><strong>Move Count:</strong> <span id="moveCount">0</span></p>
+      <p><strong>Status:</strong> <span id="gameStatus">In Progress</span></p>
+    </div>
+
+    <div class="loading" id="loading">
+      <h2>Loading Chess Game...</h2>
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <script src="dist/chess-game.js"></script>
+</body>
+</html>
