@@ -1,16 +1,16 @@
 {
   "name": "3dimensionalchess",
   "version": "1.0.0",
-  "description": "",
+  "description": "3D Chess game with Babylon.js - Dune Edition (Fremen vs Sardaukar)",
   "main": "index.js",
   "scripts": {
     "build": "node esbuild.config.js",
     "dev": "npm run build && npx http-server . -p 8080 -o index.html",
     "test": "jest"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["chess", "3d", "babylonjs", "typescript", "dune"],
+  "author": "Jakub Syrek",
+  "license": "MIT",
   "dependencies": {
     "babylonjs": "^9.6.2",
     "babylonjs-loaders": "^9.6.2",

@@ -169,9 +169,9 @@ export class PieceRenderer {
       // Higher placement for black pieces so they're visible above the board
       const heightOffset = piece.color === 'black' ? BOARD_HEIGHT / 2 + SQUARE_SIZE * 0.8 : BOARD_HEIGHT / 2 + SQUARE_SIZE * 0.3;
       const worldPos = boardToWorldPosition(piece.position, heightOffset);
-      // Sardaukar: shift toward screen-down (+X, +Z in world with this camera)
-      const offsetX = piece.color === 'black' ? 0.3 : 0;
-      const offsetZ = piece.color === 'black' ? 0.25 : 0;
+      // Sardaukar: align body/base center on square center
+      const offsetX = piece.color === 'black' ? 0 : 0;
+      const offsetZ = piece.color === 'black' ? -0.05 : 0;
       mesh.position = new BABYLON.Vector3(worldPos.x + offsetX, worldPos.y, worldPos.z + offsetZ);
     }
   }

@@ -1,96 +1,99 @@
-# ♟ 3D Chess Game - Dune Edition
+# 3D Chess Game - Dune Edition
 
-## Opis
+## Description
 
-Gra szachowa w 3D z GPU-accelerated grafiką przy użyciu **Babylon.js**. Figurki stylizowane na postacie z universum Dune:
-- **Białe (Atreides):** Fremen
-- **Czarne (Imperium):** Sardaukar
+A 3D chess game with GPU-accelerated graphics powered by **Babylon.js**. Pieces are styled after characters from the Dune universe:
+- **White (Atreides):** Fremen
+- **Black (Imperium):** Sardaukar
 
-## Stack Techniczny
+## Tech Stack
 
 - **3D Engine:** Babylon.js 6.0+
-- **Język:** TypeScript
+- **Language:** TypeScript
 - **Build Tool:** esbuild
 - **Chess Logic:** chess.js
 - **Physics:** Babylon.js Physics (Cannon.js)
 
-## Instalacja
+## Installation
 
 ```bash
-# Zainstaluj zależności
+# Install dependencies
 npm install
 
-# Zbuduj projekt
+# Build the project
 npm run build
 
-# Uruchom dev server
+# Start the dev server
 npm run dev
 ```
 
-## Struktura Projektu
+## Project Structure
 
 ```
 3DimensionalChess/
 ├── src/
-│   ├── game-engine.ts       # Główny silnik gry
-│   ├── board-renderer.ts    # Rendering planszy 3D
-│   ├── piece-renderer.ts    # Rendering figurek
-│   ├── chess-engine.ts      # Logika szachów
-│   ├── input-handler.ts     # Obsługa input'u (kliknięcia)
-│   ├── main.ts              # Punkt wejścia
+│   ├── game-engine.ts       # Main game engine
+│   ├── board-renderer.ts    # 3D board rendering
+│   ├── piece-renderer.ts    # Piece rendering
+│   ├── chess-engine.ts      # Chess logic
+│   ├── input-handler.ts     # Input handling (clicks)
+│   ├── main.ts              # Entry point
 │   └── utils/
 │       ├── types.ts         # TypeScript types
-│       ├── constants.ts     # Stałe gry
-│       └── helpers.ts       # Funkcje pomocnicze
+│       ├── constants.ts     # Game constants
+│       └── helpers.ts       # Helper functions
 ├── assets/
 │   ├── models/
-│   │   ├── sardaukar.glb    # Model Sardaukar (czarne)
-│   │   └── fremen_of_dune.glb # Model Fremen (białe)
-│   ├── textures/            # Tekstury (plansze)
-│   └── sounds/              # Efekty dźwiękowe
+│   │   ├── sardaukar.glb    # Sardaukar model (black)
+│   │   └── fremen_of_dune.glb # Fremen model (white)
+│   ├── textures/            # Textures (board)
+│   └── sounds/              # Sound effects
 ├── index.html               # HTML container
-└── package.json             # Dependencje
+└── package.json             # Dependencies
 ```
 
-## Jak Grać
+## How to Play
 
-1. Otwórz `http://localhost:8080` w przeglądarce
-2. Kliknij na figurkę aby ją wybrać (pokaże się podświetlenie możliwych ruchów)
-3. Kliknij na podświetlone pole aby wykonać ruch
-4. Gra się zmienia między graczami (białe = Fremen/Atreides, czarne = Sardaukar)
+1. Open `http://localhost:8080` in your browser
+2. Click on a piece to select it (legal moves will be highlighted)
+3. Click on a highlighted square to make a move
+4. Players alternate (white = Fremen/Atreides, black = Sardaukar)
 
-## Kontrolki
+## Controls
 
-- **Lewy Click:** Wybierz figurkę / Wykonaj ruch
-- **ESC:** Anuluj wybór
+- **Left Click:** Select a piece / Make a move
+- **ESC:** Cancel selection
+- **Mouse Drag:** Rotate camera around the board
+- **Scroll Wheel:** Zoom in/out
+- **Right-Click + Drag:** Pan the camera
 
-## Status Implementacji
+## Implementation Status
 
-### ✅ Phase 1 (MVP) - Kompletne
-- [x] Rendering planszy 3D
-- [x] Ładowanie modeli 3D (Fremen + Sardaukar)
-- [x] Placement figurek w pozycji startowej
-- [x] Obsługa input'u (kliknięcia)
-- [x] Walidacja ruchów (chess.js)
-- [x] Zmiana gracza
-- [x] Detencja check/checkmate/stalemate
-- [x] Animacja ruchów figurek
-- [x] UI status gry
+### Phase 1 (MVP) - Complete
+- [x] 3D board rendering
+- [x] 3D model loading (Fremen + Sardaukar)
+- [x] Piece placement at starting positions
+- [x] Input handling (clicks)
+- [x] Move validation (chess.js)
+- [x] Player turn switching
+- [x] Check/checkmate/stalemate detection
+- [x] Piece movement animation
+- [x] Game status UI
+- [x] Orbit-style camera controls
 
-### 🔄 Phase 2 (Graphics) - Planowane
-- [ ] Smooth animacje
+### Phase 2 (Graphics) - Planned
+- [ ] Smooth animations
 - [ ] Particle effects (capture effect)
 - [ ] Post-processing (bloom, depth-of-field)
 - [ ] 3-point lighting improvements
 - [ ] Real-time shadows
-- [ ] Camera controls (orbit, zoom)
 
-### 🔄 Phase 3 (AI) - Planowane
+### Phase 3 (AI) - Planned
 - [ ] AI opponent (Stockfish.js)
 - [ ] Difficulty levels
 - [ ] AI thinking animation
 
-### 🔄 Phase 4 (Polish) - Planowane
+### Phase 4 (Polish) - Planned
 - [ ] Sound effects
 - [ ] Move history panel
 - [ ] Save/load games
@@ -98,36 +101,35 @@ npm run dev
 
 ## Debug Console
 
-Po uruchomieniu gry dostępny jest obiekt `gameEngine` w konsoli:
+After starting the game, the `gameEngine` object is available in the browser console:
 
 ```javascript
-// Resetuj grę
+// Reset the game
 gameEngine.resetGame()
 
-// Cofnij ostatni ruch
+// Undo the last move
 gameEngine.undoMove()
 
-// Pokaż stan gry
+// Show the current game state
 console.log(gameEngine.getGameState())
 ```
 
-## Wymagania Systemowe
+## System Requirements
 
-- Modern browser z WebGL support (Chrome 90+, Firefox 88+, Safari 14+)
-- ~50MB RAM dla gry
-- Internet connection do pobrania Babylon.js
+- Modern browser with WebGL support (Chrome 90+, Firefox 88+, Safari 14+)
+- ~50MB RAM
+- Internet connection to fetch Babylon.js
 
-## TODO na Przyszłość
+## Future TODO
 
-- [ ] Zoptymalizować rozmiar bundla (obecnie ~11MB)
-- [ ] Dodać WebGPU support
+- [ ] Optimize bundle size (currently ~11MB)
+- [ ] Add WebGPU support
 - [ ] Multiplayer via WebSockets
 - [ ] Mobile touch controls
 - [ ] Dark mode UI
 - [ ] Replay system
-- [ ] Analytics dashboard
 
-## Licencja
+## License
 
 MIT
 
@@ -136,4 +138,4 @@ MIT
 - 3D Models: Sketchfab (Sardaukar by ptibogvader, Fremen by ...)
 - Chess Logic: chess.js
 - 3D Engine: Babylon.js
-- Inspiracja: Frank Herbert's Dune
+- Inspiration: Frank Herbert's Dune
