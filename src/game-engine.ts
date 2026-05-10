@@ -160,15 +160,17 @@ export class GameEngine {
     const success = this.chessEngine.makeMove(from, to);
     if (!success) return;
 
-    // Check for capture
+    // Check for capture - run capture animation in parallel with the attacker's move
     const capturedPiece = this.chessEngine.getPieceAt(to);
-    if (capturedPiece && capturedPiece.position.x !== to.x || capturedPiece.position.y !== to.y) {
-      // Piece was captured - remove it visually
-      this.pieceRenderer.removePiece(to);
-    }
+    const captureAnim = (capturedPiece && (capturedPiece.position.x !== to.x || capturedPiece.position.y !== to.y))
+      ? this.pieceRenderer.removePiece(to)
+      : Promise.resolve();
 
-    // Animate piece movement
-    await this.pieceRenderer.movePiece(from, to);
+    // Animate piece movement and capture in parallel
+    await Promise.all([
+      this.pieceRenderer.movePiece(from, to),
+      captureAnim,
+    ]);
 
     // Update piece positions
     this.gameState.pieces = this.chessEngine.getPieces();

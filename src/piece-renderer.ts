@@ -176,13 +176,12 @@ export class PieceRenderer {
     }
   }
 
-  // Move a piece smoothly to new position
+  // Move a piece smoothly to new position with an arc jump
   async movePiece(from: Position, to: Position): Promise<void> {
     // Find the piece mesh
     const meshKey = Array.from(this.pieceMeshes.keys()).find(key => {
       const mesh = this.pieceMeshes.get(key);
       if (!mesh) return false;
-      // Check if mesh is at 'from' position
       const fromWorld = boardToWorldPosition(from, BOARD_HEIGHT + SQUARE_SIZE * 0.2);
       return Math.abs(mesh.position.x - fromWorld.x) < 0.1 &&
              Math.abs(mesh.position.z - fromWorld.z) < 0.1;
@@ -194,39 +193,196 @@ export class PieceRenderer {
     }
 
     const mesh = this.pieceMeshes.get(meshKey)!;
+    const startPos = mesh.position.clone();
     const toWorld = boardToWorldPosition(to, BOARD_HEIGHT + SQUARE_SIZE * 0.2);
-    const targetPosition = new BABYLON.Vector3(toWorld.x, toWorld.y, toWorld.z);
+    const endPos = new BABYLON.Vector3(toWorld.x, startPos.y, toWorld.z);
+
+    // Compute arc: peak at midpoint, lifted by jump height
+    const distance = BABYLON.Vector3.Distance(startPos, endPos);
+    const jumpHeight = Math.min(1.5, 0.5 + distance * 0.2);
+    const midPos = new BABYLON.Vector3(
+      (startPos.x + endPos.x) / 2,
+      startPos.y + jumpHeight,
+      (startPos.z + endPos.z) / 2
+    );
+
+    const fps = 60;
+    const totalFrames = 36; // 0.6 seconds
+
+    const arcAnimation = new BABYLON.Animation(
+      'movePieceArc',
+      'position',
+      fps,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+
+    arcAnimation.setKeys([
+      { frame: 0, value: startPos },
+      { frame: totalFrames / 2, value: midPos },
+      { frame: totalFrames, value: endPos },
+    ]);
+
+    const ease = new BABYLON.SineEase();
+    ease.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
+    arcAnimation.setEasingFunction(ease);
 
     return new Promise(resolve => {
-      BABYLON.Animation.CreateAndStartAnimation(
-        'movePiece',
+      this.scene.beginDirectAnimation(
         mesh,
-        'position',
-        60, // FPS
-        30, // Frames (0.5 seconds)
-        mesh.position.clone(),
-        targetPosition,
-        BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT,
-        new BABYLON.CubicEase(),
+        [arcAnimation],
+        0,
+        totalFrames,
+        false,
+        1,
         () => resolve()
       );
     });
   }
 
-  // Remove a piece from the board (for captures)
-  removePiece(position: Position): void {
-    const keysToRemove: string[] = [];
+  // Remove a piece with capture animation: fade + sink + scale down + particle burst
+  async removePiece(position: Position): Promise<void> {
+    const targetMeshes: { mesh: BABYLON.Mesh; key: string }[] = [];
 
     this.pieceMeshes.forEach((mesh, key) => {
       const worldPos = boardToWorldPosition(position, BOARD_HEIGHT + SQUARE_SIZE * 0.2);
       if (Math.abs(mesh.position.x - worldPos.x) < 0.1 &&
           Math.abs(mesh.position.z - worldPos.z) < 0.1) {
-        mesh.dispose();
-        keysToRemove.push(key);
+        targetMeshes.push({ mesh, key });
       }
     });
 
-    keysToRemove.forEach(key => this.pieceMeshes.delete(key));
+    if (targetMeshes.length === 0) return;
+
+    // Spawn particle burst at the capture location
+    const captureWorld = boardToWorldPosition(position, BOARD_HEIGHT + SQUARE_SIZE * 0.4);
+    this.createCaptureBurst(new BABYLON.Vector3(captureWorld.x, captureWorld.y, captureWorld.z));
+
+    // Animate each captured mesh: fade + sink + scale down in parallel
+    const animations = targetMeshes.map(({ mesh }) => this.animateCapture(mesh));
+    await Promise.all(animations);
+
+    // Dispose all captured meshes after animation completes
+    targetMeshes.forEach(({ mesh, key }) => {
+      mesh.dispose();
+      this.pieceMeshes.delete(key);
+    });
+  }
+
+  // Animate a single captured piece: sink down, scale to zero, fade out materials
+  private animateCapture(mesh: BABYLON.Mesh): Promise<void> {
+    const fps = 60;
+    const totalFrames = 45; // 0.75 seconds
+    const startPos = mesh.position.clone();
+    const startScale = mesh.scaling.clone();
+
+    // Sink animation (move down)
+    const sinkAnim = new BABYLON.Animation(
+      'captureSink', 'position', fps,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    sinkAnim.setKeys([
+      { frame: 0, value: startPos },
+      { frame: totalFrames, value: new BABYLON.Vector3(startPos.x, startPos.y - 1.0, startPos.z) },
+    ]);
+
+    // Scale down animation
+    const scaleAnim = new BABYLON.Animation(
+      'captureScale', 'scaling', fps,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    scaleAnim.setKeys([
+      { frame: 0, value: startScale },
+      { frame: totalFrames, value: BABYLON.Vector3.Zero() },
+    ]);
+
+    // Fade out materials (alpha)
+    const allMeshes = [mesh, ...mesh.getChildMeshes()];
+    allMeshes.forEach(m => {
+      if (m.material) {
+        // Clone material so we don't fade other pieces sharing it
+        const clonedMat = m.material.clone(`fade-${m.name}`);
+        if (clonedMat) {
+          m.material = clonedMat;
+          clonedMat.alpha = 1;
+          if (clonedMat instanceof BABYLON.StandardMaterial) {
+            clonedMat.useAlphaFromDiffuseTexture = false;
+          }
+          BABYLON.Animation.CreateAndStartAnimation(
+            'captureFade', clonedMat, 'alpha', fps, totalFrames, 1, 0,
+            BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+          );
+        }
+      }
+    });
+
+    const ease = new BABYLON.QuadraticEase();
+    ease.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEIN);
+    sinkAnim.setEasingFunction(ease);
+    scaleAnim.setEasingFunction(ease);
+
+    return new Promise(resolve => {
+      this.scene.beginDirectAnimation(
+        mesh,
+        [sinkAnim, scaleAnim],
+        0,
+        totalFrames,
+        false,
+        1,
+        () => resolve()
+      );
+    });
+  }
+
+  // Create a particle burst effect at the given position (sparks for capture)
+  private createCaptureBurst(position: BABYLON.Vector3): void {
+    const particleSystem = new BABYLON.ParticleSystem('captureBurst', 200, this.scene);
+
+    // Use a built-in flare-like texture (white pixel works as fallback)
+    particleSystem.particleTexture = new BABYLON.Texture(
+      'data:image/svg+xml;base64,' + btoa(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="white"/></svg>'
+      ),
+      this.scene
+    );
+
+    particleSystem.emitter = position;
+    particleSystem.minEmitBox = new BABYLON.Vector3(-0.1, 0, -0.1);
+    particleSystem.maxEmitBox = new BABYLON.Vector3(0.1, 0.2, 0.1);
+
+    // Bright spark colors (orange/yellow)
+    particleSystem.color1 = new BABYLON.Color4(1.0, 0.8, 0.2, 1.0);
+    particleSystem.color2 = new BABYLON.Color4(1.0, 0.4, 0.0, 1.0);
+    particleSystem.colorDead = new BABYLON.Color4(0.5, 0.1, 0.0, 0.0);
+
+    particleSystem.minSize = 0.05;
+    particleSystem.maxSize = 0.2;
+
+    particleSystem.minLifeTime = 0.3;
+    particleSystem.maxLifeTime = 0.8;
+
+    particleSystem.emitRate = 800;
+    particleSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+
+    // Burst outward in all directions
+    particleSystem.gravity = new BABYLON.Vector3(0, -3, 0);
+    particleSystem.direction1 = new BABYLON.Vector3(-3, 5, -3);
+    particleSystem.direction2 = new BABYLON.Vector3(3, 8, 3);
+
+    particleSystem.minAngularSpeed = 0;
+    particleSystem.maxAngularSpeed = Math.PI;
+
+    particleSystem.minEmitPower = 1;
+    particleSystem.maxEmitPower = 3;
+    particleSystem.updateSpeed = 0.01;
+
+    // Burst: emit briefly then stop
+    particleSystem.targetStopDuration = 0.15;
+    particleSystem.disposeOnStop = true;
+
+    particleSystem.start();
   }
 
   // Highlight a piece
