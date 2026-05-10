@@ -27,15 +27,25 @@ export class BoardRenderer {
   }
 
   private setupMaterials(): void {
-    // Light square material - cream colored
+    // Light square material - glassy cream with sharp highlights
     this.lightMaterial = new BABYLON.StandardMaterial('light-square', this.scene);
     this.lightMaterial.diffuseColor = new BABYLON.Color3(0.85, 0.78, 0.62);
-    this.lightMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+    this.lightMaterial.specularColor = new BABYLON.Color3(0.9, 0.9, 0.9);
+    this.lightMaterial.specularPower = 256; // very sharp = glassy
+    this.lightMaterial.alpha = 0.65;
+    this.lightMaterial.useSpecularOverAlpha = true; // keep highlights solid even when transparent
+    this.lightMaterial.backFaceCulling = false;
+    this.lightMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
 
-    // Dark square material - dark walnut for high contrast
+    // Dark square material - glassy near-black walnut
     this.darkMaterial = new BABYLON.StandardMaterial('dark-square', this.scene);
     this.darkMaterial.diffuseColor = new BABYLON.Color3(0.12, 0.06, 0.02);
-    this.darkMaterial.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+    this.darkMaterial.specularColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+    this.darkMaterial.specularPower = 256;
+    this.darkMaterial.alpha = 0.65;
+    this.darkMaterial.useSpecularOverAlpha = true;
+    this.darkMaterial.backFaceCulling = false;
+    this.darkMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
 
     // Highlight materials
     const createHighlightMaterial = (name: string, color: BABYLON.Color3) => {
