@@ -32,12 +32,12 @@ export class PieceRenderer {
     this.whiteMaterial.specularColor = new BABYLON.Color3(0.8, 0.8, 0.8);
     this.whiteMaterial.specularPower = 32;
 
-    // Black piece material (Sardaukar - dark metallic with strong specular)
+    // Black piece material (Sardaukar - bright polished steel/silver)
     this.blackMaterial = new BABYLON.StandardMaterial('black-piece', this.scene);
-    this.blackMaterial.diffuse = new BABYLON.Color3(0.35, 0.35, 0.4);
-    this.blackMaterial.specularColor = new BABYLON.Color3(0.8, 0.8, 0.8);
+    this.blackMaterial.diffuse = new BABYLON.Color3(0.85, 0.85, 0.88);
+    this.blackMaterial.specularColor = new BABYLON.Color3(0.9, 0.9, 0.95);
     this.blackMaterial.specularPower = 64;
-    this.blackMaterial.emissiveColor = new BABYLON.Color3(0.1, 0.1, 0.15);
+    this.blackMaterial.emissiveColor = new BABYLON.Color3(0.12, 0.12, 0.15);
 
     // Selected piece material (glow)
     this.selectedMaterial = new BABYLON.StandardMaterial('selected-piece', this.scene);
