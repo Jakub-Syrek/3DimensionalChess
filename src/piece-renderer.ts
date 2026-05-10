@@ -186,7 +186,25 @@ export class PieceRenderer {
         // Force identity quaternion on white clones to rotate 180° from imported orientation
         mesh.rotationQuaternion = BABYLON.Quaternion.Identity();
         mesh.rotation = BABYLON.Vector3.Zero();
-        console.log(`✓ Created white ${piece.type} at ${piece.position.x},${piece.position.y} | quat=identity`);
+
+        // Add a circular base disc under the Fremen (Sardaukar already has its own model base).
+        // Compensate for the parent's 0.025 scaling so the disc is ~0.75 world units across.
+        const inv = 1 / 0.025; // ≈ 40
+        const base = BABYLON.MeshBuilder.CreateCylinder(`white-base-${key}`, {
+          diameter: 0.75 * inv,
+          height: 0.06 * inv,
+          tessellation: 48,
+        }, this.scene);
+        const baseMaterial = new BABYLON.StandardMaterial(`white-base-mat-${key}`, this.scene);
+        baseMaterial.diffuseColor = new BABYLON.Color3(0.9, 0.88, 0.85);
+        baseMaterial.specularColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+        base.material = baseMaterial;
+        base.parent = mesh;
+        // Local Y offset places the base just above the board surface (~world y=0.18).
+        // mesh root sits at world y=0.40 (BOARD_HEIGHT/2 + SQUARE_SIZE*0.3), parent scale 0.025.
+        base.position.y = (0.18 - 0.40) * inv;
+
+        console.log(`✓ Created white ${piece.type} at ${piece.position.x},${piece.position.y} | quat=identity, base=added`);
       } else if (piece.color === 'black' && this.sardaukarModel) {
         // Clone Sardaukar model - keep imported quaternion
         mesh = this.sardaukarModel.clone(`black-${key}`) as BABYLON.Mesh;
@@ -279,10 +297,13 @@ export class PieceRenderer {
     ease.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
     arcAnimation.setEasingFunction(ease);
 
+    // Forward lean: piece leans toward movement direction during the arc, then stands back up.
+    const leanAnim = this.buildLeanAnimation(mesh, totalFrames, Math.PI / 12);
+
     return new Promise(resolve => {
       this.scene.beginDirectAnimation(
         mesh,
-        [arcAnimation],
+        [arcAnimation, leanAnim],
         0,
         totalFrames,
         false,
@@ -290,6 +311,77 @@ export class PieceRenderer {
         () => resolve()
       );
     });
+  }
+
+  // Build a quaternion animation that tilts the mesh forward (around X) at the midpoint,
+  // then returns to its baseline orientation.
+  private buildLeanAnimation(mesh: BABYLON.Mesh, totalFrames: number, angle: number): BABYLON.Animation {
+    if (!mesh.rotationQuaternion) {
+      mesh.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(mesh.rotation);
+    }
+    const base = mesh.rotationQuaternion.clone();
+    const tilt = BABYLON.Quaternion.RotationAxis(BABYLON.Axis.X, -angle);
+    const leaned = base.multiply(tilt);
+
+    const anim = new BABYLON.Animation(
+      'pieceLean', 'rotationQuaternion', 60,
+      BABYLON.Animation.ANIMATIONTYPE_QUATERNION,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    anim.setKeys([
+      { frame: 0, value: base },
+      { frame: totalFrames / 2, value: leaned },
+      { frame: totalFrames, value: base },
+    ]);
+    const ease = new BABYLON.SineEase();
+    ease.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
+    anim.setEasingFunction(ease);
+    return anim;
+  }
+
+  // Build a yaw-swing quaternion animation: rotate left → right → back to base.
+  // Used during the strike phase to simulate a weapon slash.
+  private buildSwingAnimation(mesh: BABYLON.Mesh, totalFrames: number, angle: number): BABYLON.Animation {
+    if (!mesh.rotationQuaternion) {
+      mesh.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(mesh.rotation);
+    }
+    const base = mesh.rotationQuaternion.clone();
+    const swingLeft = base.multiply(BABYLON.Quaternion.RotationAxis(BABYLON.Axis.Y, -angle));
+    const swingRight = base.multiply(BABYLON.Quaternion.RotationAxis(BABYLON.Axis.Y, angle));
+
+    const anim = new BABYLON.Animation(
+      'pieceSwing', 'rotationQuaternion', 60,
+      BABYLON.Animation.ANIMATIONTYPE_QUATERNION,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    anim.setKeys([
+      { frame: 0, value: base },
+      { frame: Math.floor(totalFrames * 0.25), value: swingLeft },
+      { frame: Math.floor(totalFrames * 0.5), value: swingRight },
+      { frame: totalFrames, value: base },
+    ]);
+    return anim;
+  }
+
+  // Build a "hit recoil" quaternion animation - tilt backward as if struck, then upright.
+  private buildRecoilAnimation(mesh: BABYLON.Mesh, totalFrames: number, angle: number): BABYLON.Animation {
+    if (!mesh.rotationQuaternion) {
+      mesh.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(mesh.rotation);
+    }
+    const base = mesh.rotationQuaternion.clone();
+    const recoiled = base.multiply(BABYLON.Quaternion.RotationAxis(BABYLON.Axis.X, angle));
+
+    const anim = new BABYLON.Animation(
+      'pieceRecoil', 'rotationQuaternion', 60,
+      BABYLON.Animation.ANIMATIONTYPE_QUATERNION,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    anim.setKeys([
+      { frame: 0, value: base },
+      { frame: Math.floor(totalFrames * 0.3), value: recoiled },
+      { frame: totalFrames, value: recoiled },
+    ]);
+    return anim;
   }
 
   // 3-phase combat animation for capturing moves.
@@ -347,8 +439,11 @@ export class PieceRenderer {
     approachEase.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEIN);
     approachAnim.setEasingFunction(approachEase);
 
+    // Lean the attacker forward while charging in
+    const approachLean = this.buildLeanAnimation(attacker, 21, Math.PI / 8);
+
     await new Promise<void>(resolve => {
-      this.scene.beginDirectAnimation(attacker, [approachAnim], 0, 21, false, 1, () => resolve());
+      this.scene.beginDirectAnimation(attacker, [approachAnim, approachLean], 0, 21, false, 1, () => resolve());
     });
 
     // ---- Phase 2: STRIKE (~0.2s) ----
@@ -374,11 +469,24 @@ export class PieceRenderer {
       { frame: 6, value: lungeForward },
       { frame: 12, value: approachPos },
     ]);
+
+    // Sword swing on the attacker (yaw)
+    const strikeSwing = this.buildSwingAnimation(attacker, 12, Math.PI / 4);
+
+    // Defenders recoil backwards from the hit
+    const defenderRecoils = defenderEntries.map(({ mesh }) => {
+      const recoil = this.buildRecoilAnimation(mesh, 12, Math.PI / 8);
+      return new Promise<void>(resolve => {
+        this.scene.beginDirectAnimation(mesh, [recoil], 0, 12, false, 1, () => resolve());
+      });
+    });
+
     await Promise.all([
       new Promise<void>(resolve => {
-        this.scene.beginDirectAnimation(attacker, [strikeLunge], 0, 12, false, 1, () => resolve());
+        this.scene.beginDirectAnimation(attacker, [strikeLunge, strikeSwing], 0, 12, false, 1, () => resolve());
       }),
       ...defenderShakes,
+      ...defenderRecoils,
     ]);
 
     // ---- Phase 3: WITHDRAWAL + defender death (~0.45s) ----
@@ -395,8 +503,11 @@ export class PieceRenderer {
     finishEase.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEOUT);
     finishAnim.setEasingFunction(finishEase);
 
+    // Stand back up after the strike (lean returns to baseline)
+    const finishLean = this.buildLeanAnimation(attacker, 18, Math.PI / 16);
+
     const attackerFinish = new Promise<void>(resolve => {
-      this.scene.beginDirectAnimation(attacker, [finishAnim], 0, 18, false, 1, () => resolve());
+      this.scene.beginDirectAnimation(attacker, [finishAnim, finishLean], 0, 18, false, 1, () => resolve());
     });
 
     // Animate each defender mesh dying in parallel
