@@ -59,7 +59,7 @@ export class PieceRenderer {
 
       if (sardaukarResult.meshes.length > 0) {
         this.sardaukarModel = sardaukarResult.meshes[0] as BABYLON.Mesh;
-        this.sardaukarModel.scaling.scaleInPlace(0.6);
+        this.sardaukarModel.scaling.scaleInPlace(0.54);
         // Keep Sardaukar's natural imported quaternion (0,1,0,0)
         // Position template off-screen instead of hiding
         this.sardaukarModel.position.y = -100;
