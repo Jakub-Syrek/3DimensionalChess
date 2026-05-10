@@ -19,6 +19,7 @@ export class BoardRenderer {
   private highlightMaterials: Map<string, BABYLON.StandardMaterial> = new Map();
   private shadowGenerator: BABYLON.ShadowGenerator | null = null;
   private squareMeshes: BABYLON.Mesh[] = [];
+  private mirrorTexture: BABYLON.MirrorTexture | null = null;
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
@@ -27,25 +28,39 @@ export class BoardRenderer {
   }
 
   private setupMaterials(): void {
-    // Light square material - glassy cream with sharp highlights
+    // Mirror texture for the board top surface - reflects pieces above the board.
+    // The mirror plane is at the top of the squares (y ≈ 0.25 with current geometry).
+    const mirrorY = BOARD_HEIGHT / 2 + 0.15;
+    this.mirrorTexture = new BABYLON.MirrorTexture('boardMirror', 1024, this.scene, true);
+    this.mirrorTexture.mirrorPlane = new BABYLON.Plane(0, -1, 0, mirrorY);
+    this.mirrorTexture.level = 0.6;
+    // renderList is populated externally (pieces) via addReflectionTarget()
+
+    // Light square material - glassy cream that reflects pieces
     this.lightMaterial = new BABYLON.StandardMaterial('light-square', this.scene);
     this.lightMaterial.diffuseColor = new BABYLON.Color3(0.85, 0.78, 0.62);
     this.lightMaterial.specularColor = new BABYLON.Color3(0.9, 0.9, 0.9);
-    this.lightMaterial.specularPower = 256; // very sharp = glassy
-    this.lightMaterial.alpha = 0.65;
-    this.lightMaterial.useSpecularOverAlpha = true; // keep highlights solid even when transparent
+    this.lightMaterial.specularPower = 256;
+    this.lightMaterial.alpha = 0.7;
+    this.lightMaterial.useSpecularOverAlpha = true;
     this.lightMaterial.backFaceCulling = false;
     this.lightMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+    this.lightMaterial.reflectionTexture = this.mirrorTexture;
+    this.lightMaterial.reflectionTexture.level = 0.5;
+    this.lightMaterial.useReflectionOverAlpha = true;
 
-    // Dark square material - glassy near-black walnut
+    // Dark square material - glassy near-black walnut, stronger reflection
     this.darkMaterial = new BABYLON.StandardMaterial('dark-square', this.scene);
-    this.darkMaterial.diffuseColor = new BABYLON.Color3(0.12, 0.06, 0.02);
+    this.darkMaterial.diffuseColor = new BABYLON.Color3(0.10, 0.05, 0.02);
     this.darkMaterial.specularColor = new BABYLON.Color3(0.7, 0.7, 0.7);
     this.darkMaterial.specularPower = 256;
-    this.darkMaterial.alpha = 0.65;
+    this.darkMaterial.alpha = 0.7;
     this.darkMaterial.useSpecularOverAlpha = true;
     this.darkMaterial.backFaceCulling = false;
     this.darkMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+    this.darkMaterial.reflectionTexture = this.mirrorTexture;
+    this.darkMaterial.reflectionTexture.level = 0.7; // dark squares show reflection more clearly
+    this.darkMaterial.useReflectionOverAlpha = true;
 
     // Highlight materials
     const createHighlightMaterial = (name: string, color: BABYLON.Color3) => {
@@ -67,6 +82,15 @@ export class BoardRenderer {
     this.shadowGenerator = generator;
     // If board already created, mark existing squares as receivers
     this.squareMeshes.forEach(s => { s.receiveShadows = true; });
+  }
+
+  // Register meshes to be reflected by the board mirror
+  addReflectionTargets(meshes: BABYLON.AbstractMesh[]): void {
+    if (!this.mirrorTexture) return;
+    const renderList = this.mirrorTexture.renderList || (this.mirrorTexture.renderList = []);
+    meshes.forEach(m => {
+      if (!renderList.includes(m)) renderList.push(m);
+    });
   }
 
   // Create the board geometry

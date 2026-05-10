@@ -102,6 +102,9 @@ export class GameEngine {
     this.boardRenderer.setShadowGenerator(shadowGenerator);
     this.pieceRenderer.setShadowGenerator(shadowGenerator);
 
+    // Connect the piece renderer to the board's mirror so pieces are reflected
+    this.pieceRenderer.setReflectionRegister(meshes => this.boardRenderer.addReflectionTargets(meshes));
+
     // Fill light - softens the shadow side
     const fillLight = new BABYLON.HemisphericLight('fillLight', new BABYLON.Vector3(-1, 1, -1), this.scene);
     fillLight.intensity = 0.15;

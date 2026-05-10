@@ -18,6 +18,7 @@ export class PieceRenderer {
   private currentlySelectedMesh: BABYLON.Mesh | null = null;
   private currentlySelectedColor: 'white' | 'black' | null = null;
   private shadowGenerator: BABYLON.ShadowGenerator | null = null;
+  private reflectionRegisterCallback: ((meshes: BABYLON.AbstractMesh[]) => void) | null = null;
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
@@ -124,19 +125,39 @@ export class PieceRenderer {
     this.pieceMeshes.forEach(mesh => this.registerCasters(mesh));
   }
 
+  // Allow another component (BoardRenderer) to receive reflection targets.
+  setReflectionRegister(cb: (meshes: BABYLON.AbstractMesh[]) => void): void {
+    this.reflectionRegisterCallback = cb;
+    // Send any already-created pieces
+    this.pieceMeshes.forEach(mesh => this.registerReflectionTargets(mesh));
+  }
+
+  // Collect renderable meshes (with geometry) from a root for reflection/shadow lists.
+  private collectRenderable(rootMesh: BABYLON.Mesh): BABYLON.AbstractMesh[] {
+    const result: BABYLON.AbstractMesh[] = [];
+    if (rootMesh instanceof BABYLON.Mesh && rootMesh.getTotalVertices() > 0) {
+      result.push(rootMesh);
+    }
+    rootMesh.getChildMeshes().forEach(m => {
+      if (m instanceof BABYLON.Mesh && m.getTotalVertices() > 0) result.push(m);
+    });
+    return result;
+  }
+
   // Add a mesh and all its renderable descendants to the shadow caster list.
   private registerCasters(rootMesh: BABYLON.Mesh): void {
     if (!this.shadowGenerator) return;
     const renderList = this.shadowGenerator.getShadowMap()?.renderList;
     if (!renderList) return;
-    const addIfRenderable = (m: BABYLON.AbstractMesh) => {
-      // Only meshes with geometry need to cast; empty roots/transforms can be skipped
-      if (m instanceof BABYLON.Mesh && m.getTotalVertices() > 0) {
-        if (!renderList.includes(m)) renderList.push(m);
-      }
-    };
-    addIfRenderable(rootMesh);
-    rootMesh.getChildMeshes().forEach(addIfRenderable);
+    this.collectRenderable(rootMesh).forEach(m => {
+      if (!renderList.includes(m)) renderList.push(m);
+    });
+  }
+
+  // Push this piece's renderable meshes to the board's reflection list.
+  private registerReflectionTargets(rootMesh: BABYLON.Mesh): void {
+    if (!this.reflectionRegisterCallback) return;
+    this.reflectionRegisterCallback(this.collectRenderable(rootMesh));
   }
 
   // Place pieces on the board
@@ -191,8 +212,9 @@ export class PieceRenderer {
 
       this.pieceMeshes.set(key, mesh);
 
-      // Register the new piece (and its children) as a shadow caster
+      // Register the new piece (and its children) as a shadow caster and reflection target
       this.registerCasters(mesh);
+      this.registerReflectionTargets(mesh);
     }
 
     if (mesh) {
