@@ -174,17 +174,16 @@ export class GameEngine {
       return;
     }
 
+    // Detect capture BEFORE the chess engine updates state -
+    // afterwards getPieceAt(to) returns the moving attacker, not the defender.
+    const isCapture = !!this.chessEngine.getPieceAt(to);
+
     // Make move in chess engine
     const success = this.chessEngine.makeMove(from, to);
     if (!success) return;
 
-    // Check for capture - run capture animation in parallel with the attacker's move
-    const capturedPiece = this.chessEngine.getPieceAt(to);
-    const captureAnim = (capturedPiece && (capturedPiece.position.x !== to.x || capturedPiece.position.y !== to.y))
-      ? this.pieceRenderer.removePiece(to)
-      : Promise.resolve();
-
-    // Animate piece movement and capture in parallel
+    // Animate the attacker's arc and the defender's death in parallel.
+    const captureAnim = isCapture ? this.pieceRenderer.removePiece(to) : Promise.resolve();
     await Promise.all([
       this.pieceRenderer.movePiece(from, to),
       captureAnim,
