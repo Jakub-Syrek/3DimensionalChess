@@ -166,8 +166,8 @@ export class PieceRenderer {
     }
 
     if (mesh) {
-      // Higher placement for black pieces so they're visible above the board
-      const heightOffset = piece.color === 'black' ? BOARD_HEIGHT / 2 + SQUARE_SIZE * 0.8 : BOARD_HEIGHT / 2 + SQUARE_SIZE * 0.3;
+      // Sit pieces on the board surface
+      const heightOffset = piece.color === 'black' ? BOARD_HEIGHT / 2 + SQUARE_SIZE * 0.3 : BOARD_HEIGHT / 2 + SQUARE_SIZE * 0.3;
       const worldPos = boardToWorldPosition(piece.position, heightOffset);
       // Sardaukar: align body/base center on square center
       const offsetX = piece.color === 'black' ? 0 : 0;
