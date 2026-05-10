@@ -86,31 +86,34 @@ export class InputHandler {
 
   // Convert screen coordinates to board position
   private screenToBoard(screenX: number, screenY: number): Position | null {
-    // Create a ray from the camera through the screen point
-    const ray = BABYLON.Ray.CreateFromCamera(
-      {
-        x: screenX / this.canvas.width,
-        y: screenY / this.canvas.height
-      },
+    // Create a picking ray from the camera through the cursor (pixel coords).
+    const ray = this.scene.createPickingRay(
+      screenX,
+      screenY,
+      BABYLON.Matrix.Identity(),
       this.scene.activeCamera!
     );
 
-    // Check intersections with the board plane
-    const boardHeight = 0.1;
+    // Intersect with the board plane (top of board surface)
+    const boardHeight = 0.2;
     const boardPlane = BABYLON.Plane.FromPositionAndNormal(
       new BABYLON.Vector3(0, boardHeight, 0),
       BABYLON.Axis.Y
     );
 
     const intersection = ray.intersectsPlane(boardPlane);
-    if (!intersection) return null;
+    if (intersection === null || intersection === undefined) return null;
 
     const point = ray.origin.add(ray.direction.scale(intersection));
 
-    // Convert world position to board coordinates
+    // Convert world position to board coordinates.
+    // boardToWorldPosition: x = pos.x * SQUARE_SIZE - half + half_square,
+    //                      z = (7 - pos.y) * SQUARE_SIZE - half + half_square
+    // So invert: pos.x = (point.x + half - half_square) / SQUARE_SIZE
+    //            pos.y = 7 - (point.z + half - half_square) / SQUARE_SIZE
     const halfBoardSize = (BOARD_SIZE * SQUARE_SIZE) / 2;
     const boardX = Math.round((point.x + halfBoardSize) / SQUARE_SIZE - 0.5);
-    const boardY = Math.round((point.z + halfBoardSize) / SQUARE_SIZE - 0.5);
+    const boardY = (BOARD_SIZE - 1) - Math.round((point.z + halfBoardSize) / SQUARE_SIZE - 0.5);
 
     // Validate bounds
     if (boardX < 0 || boardX >= BOARD_SIZE || boardY < 0 || boardY >= BOARD_SIZE) {
