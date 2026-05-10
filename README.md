@@ -1,5 +1,7 @@
 # 3D Chess Game - Dune Edition
 
+![3D Chess - Dune Edition](docs/screenshot.png)
+
 ## Description
 
 A 3D chess game with GPU-accelerated graphics powered by **Babylon.js**. Pieces are styled after characters from the Dune universe:
