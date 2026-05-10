@@ -6,3 +6,11 @@ dist/
 .env.local
 .cache/
 .claude/
+
+# Local-only scripts (ngrok tunnels, dev shortcuts) - don't share personal paths/domains
+*.bat
+*.cmd
+*.ps1
+
+# Editor/screenshot leftovers
+assets/models/screenshot*.png
