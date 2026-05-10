@@ -13,6 +13,10 @@ export class PieceRenderer {
   private whiteMaterial: BABYLON.StandardMaterial;
   private blackMaterial: BABYLON.StandardMaterial;
   private modelsLoaded = false;
+  // Track currently selected mesh so we can reliably restore its material on deselect
+  // (key-based lookup breaks after a piece moves because the key encodes old position).
+  private currentlySelectedMesh: BABYLON.Mesh | null = null;
+  private currentlySelectedColor: 'white' | 'black' | null = null;
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
@@ -385,40 +389,72 @@ export class PieceRenderer {
     particleSystem.start();
   }
 
-  // Highlight a piece
+  // Highlight a piece (apply yellow selectedMaterial). Tracks the mesh so deselect can revert it.
   selectPiece(position: Position): void {
+    // First clear any previous selection
+    this.deselectAll([]);
+
     const worldPos = boardToWorldPosition(position, BOARD_HEIGHT + SQUARE_SIZE * 0.2);
 
-    this.pieceMeshes.forEach(mesh => {
+    this.pieceMeshes.forEach((mesh, key) => {
       if (Math.abs(mesh.position.x - worldPos.x) < 0.1 &&
           Math.abs(mesh.position.z - worldPos.z) < 0.1) {
         mesh.material = this.selectedMaterial;
         mesh.getChildMeshes().forEach(child => {
           child.material = this.selectedMaterial;
         });
+        this.currentlySelectedMesh = mesh;
+        // Color is encoded in the mesh's clone name: 'white-...' or 'black-...'
+        this.currentlySelectedColor = key.startsWith('piece-white') ? 'white' : 'black';
       }
     });
   }
 
-  // Deselect all pieces
-  deselectAll(pieces: Piece[]): void {
-    pieces.forEach(piece => {
-      const material = piece.color === 'white' ? this.whiteMaterial : this.blackMaterial;
-      const key = `piece-${piece.color}-${piece.type}-${piece.position.x}-${piece.position.y}`;
-      const mesh = this.pieceMeshes.get(key);
-
-      if (mesh) {
-        mesh.material = material;
-        mesh.getChildMeshes().forEach(child => {
-          child.material = material;
-        });
-      }
+  // Deselect: restore the original color material on the previously selected mesh.
+  // The `pieces` parameter is unused but kept for API compatibility.
+  deselectAll(_pieces?: Piece[]): void {
+    if (!this.currentlySelectedMesh || !this.currentlySelectedColor) return;
+    const material = this.currentlySelectedColor === 'white' ? this.whiteMaterial : this.blackMaterial;
+    this.currentlySelectedMesh.material = material;
+    this.currentlySelectedMesh.getChildMeshes().forEach(child => {
+      child.material = material;
     });
+    this.currentlySelectedMesh = null;
+    this.currentlySelectedColor = null;
   }
 
-  // Update all pieces positions
+  // Sync mesh map keys with current piece positions. Called after a move so
+  // future selectPiece/removePiece lookups don't fall through to creating new meshes.
   updateAllPieces(pieces: Piece[]): void {
-    pieces.forEach(piece => this.updatePiecePosition(piece));
+    // Build the desired set of keys (one per current piece). Existing meshes whose
+    // key matches stay put. Meshes that have been animated to a new square will
+    // have their key updated; never create new meshes here (placePieces does that).
+    const desiredKeys = new Set<string>();
+    const keyForPiece = (p: Piece) =>
+      `piece-${p.color}-${p.type}-${p.position.x}-${p.position.y}`;
+
+    pieces.forEach(p => desiredKeys.add(keyForPiece(p)));
+
+    // For each desired key, if there's no mesh under it, find an orphaned mesh
+    // at that piece's world position and re-key it.
+    pieces.forEach(piece => {
+      const newKey = keyForPiece(piece);
+      if (this.pieceMeshes.has(newKey)) return;
+
+      const expectedHeight = BOARD_HEIGHT / 2 + SQUARE_SIZE * 0.3;
+      const worldPos = boardToWorldPosition(piece.position, expectedHeight);
+
+      for (const [oldKey, mesh] of this.pieceMeshes.entries()) {
+        if (oldKey === newKey) continue;
+        if (desiredKeys.has(oldKey)) continue; // owned by another piece
+        if (Math.abs(mesh.position.x - worldPos.x) < 0.5 &&
+            Math.abs(mesh.position.z - worldPos.z) < 0.5) {
+          this.pieceMeshes.delete(oldKey);
+          this.pieceMeshes.set(newKey, mesh);
+          break;
+        }
+      }
+    });
   }
 
   // Dispose all resources
