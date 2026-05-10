@@ -182,12 +182,12 @@ export class GameEngine {
     const success = this.chessEngine.makeMove(from, to);
     if (!success) return;
 
-    // Animate the attacker's arc and the defender's death in parallel.
-    const captureAnim = isCapture ? this.pieceRenderer.removePiece(to) : Promise.resolve();
-    await Promise.all([
-      this.pieceRenderer.movePiece(from, to),
-      captureAnim,
-    ]);
+    // Captures play a 3-phase combat animation; non-captures just arc-jump.
+    if (isCapture) {
+      await this.pieceRenderer.attackPiece(from, to);
+    } else {
+      await this.pieceRenderer.movePiece(from, to);
+    }
 
     // Update piece positions
     this.gameState.pieces = this.chessEngine.getPieces();

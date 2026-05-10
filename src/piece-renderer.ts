@@ -292,6 +292,169 @@ export class PieceRenderer {
     });
   }
 
+  // 3-phase combat animation for capturing moves.
+  // Phase 1 - APPROACH: attacker arcs ~80% of the way (no defender contact yet)
+  // Phase 2 - STRIKE: attacker lunges forward, defender shakes violently, sparks fly, camera shakes
+  // Phase 3 - WITHDRAWAL: attacker completes the move to the captured square,
+  //                       defender sinks/scales/fades and is disposed.
+  async attackPiece(from: Position, to: Position): Promise<void> {
+    // Find attacker mesh by its current position
+    const attackerKey = Array.from(this.pieceMeshes.keys()).find(key => {
+      const m = this.pieceMeshes.get(key);
+      if (!m) return false;
+      const fromWorld = boardToWorldPosition(from, BOARD_HEIGHT + SQUARE_SIZE * 0.2);
+      return Math.abs(m.position.x - fromWorld.x) < 0.1 &&
+             Math.abs(m.position.z - fromWorld.z) < 0.1;
+    });
+    if (!attackerKey) {
+      console.warn(`No attacker mesh at ${from.x},${from.y}`);
+      return;
+    }
+    const attacker = this.pieceMeshes.get(attackerKey)!;
+
+    // Find defender mesh(es) at the destination
+    const defenderEntries: { mesh: BABYLON.Mesh; key: string }[] = [];
+    const toWorld = boardToWorldPosition(to, BOARD_HEIGHT + SQUARE_SIZE * 0.2);
+    this.pieceMeshes.forEach((m, k) => {
+      if (k === attackerKey) return;
+      if (Math.abs(m.position.x - toWorld.x) < 0.1 &&
+          Math.abs(m.position.z - toWorld.z) < 0.1) {
+        defenderEntries.push({ mesh: m, key: k });
+      }
+    });
+
+    const startPos = attacker.position.clone();
+    const endPos = new BABYLON.Vector3(toWorld.x, startPos.y, toWorld.z);
+    // 80% point along the path, lifted (peak of arc on approach)
+    const approachPos = BABYLON.Vector3.Lerp(startPos, endPos, 0.78);
+    const distance = BABYLON.Vector3.Distance(startPos, endPos);
+    const jumpHeight = Math.min(1.5, 0.5 + distance * 0.2);
+    approachPos.y += jumpHeight * 0.7;
+
+    const fps = 60;
+
+    // ---- Phase 1: APPROACH (~0.35s) ----
+    const approachAnim = new BABYLON.Animation(
+      'attackApproach', 'position', fps,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    approachAnim.setKeys([
+      { frame: 0, value: startPos },
+      { frame: 21, value: approachPos },
+    ]);
+    const approachEase = new BABYLON.SineEase();
+    approachEase.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEIN);
+    approachAnim.setEasingFunction(approachEase);
+
+    await new Promise<void>(resolve => {
+      this.scene.beginDirectAnimation(attacker, [approachAnim], 0, 21, false, 1, () => resolve());
+    });
+
+    // ---- Phase 2: STRIKE (~0.2s) ----
+    // Attacker lunges forward by ~0.15 units, then snaps back.
+    const lungeForward = BABYLON.Vector3.Lerp(approachPos, endPos, 0.25);
+
+    // Spawn the spark burst at the strike location
+    this.createCaptureBurst(new BABYLON.Vector3(toWorld.x, toWorld.y + 0.4, toWorld.z));
+
+    // Camera shake (subtle)
+    this.shakeCamera(140);
+
+    // Shake the defender(s) violently in place during the strike
+    const defenderShakes = defenderEntries.map(({ mesh }) => this.shakeMesh(mesh, 140, 0.04));
+
+    const strikeLunge = new BABYLON.Animation(
+      'attackLunge', 'position', fps,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    strikeLunge.setKeys([
+      { frame: 0, value: approachPos },
+      { frame: 6, value: lungeForward },
+      { frame: 12, value: approachPos },
+    ]);
+    await Promise.all([
+      new Promise<void>(resolve => {
+        this.scene.beginDirectAnimation(attacker, [strikeLunge], 0, 12, false, 1, () => resolve());
+      }),
+      ...defenderShakes,
+    ]);
+
+    // ---- Phase 3: WITHDRAWAL + defender death (~0.45s) ----
+    const finishAnim = new BABYLON.Animation(
+      'attackFinish', 'position', fps,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+    );
+    finishAnim.setKeys([
+      { frame: 0, value: approachPos },
+      { frame: 18, value: endPos },
+    ]);
+    const finishEase = new BABYLON.SineEase();
+    finishEase.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEOUT);
+    finishAnim.setEasingFunction(finishEase);
+
+    const attackerFinish = new Promise<void>(resolve => {
+      this.scene.beginDirectAnimation(attacker, [finishAnim], 0, 18, false, 1, () => resolve());
+    });
+
+    // Animate each defender mesh dying in parallel
+    const defenderDeaths = defenderEntries.map(({ mesh }) => this.animateCapture(mesh));
+
+    await Promise.all([attackerFinish, ...defenderDeaths]);
+
+    // Dispose defenders after animation
+    defenderEntries.forEach(({ mesh, key }) => {
+      mesh.dispose();
+      this.pieceMeshes.delete(key);
+    });
+  }
+
+  // Briefly shake a mesh in place (used for defender during strike).
+  private shakeMesh(mesh: BABYLON.Mesh, durationMs: number, magnitude: number): Promise<void> {
+    return new Promise(resolve => {
+      const original = mesh.position.clone();
+      const start = performance.now();
+      const observer = this.scene.onBeforeRenderObservable.add(() => {
+        const elapsed = performance.now() - start;
+        if (elapsed >= durationMs) {
+          mesh.position.copyFrom(original);
+          this.scene.onBeforeRenderObservable.remove(observer);
+          resolve();
+          return;
+        }
+        const decay = 1 - elapsed / durationMs;
+        const dx = (Math.random() - 0.5) * magnitude * decay;
+        const dz = (Math.random() - 0.5) * magnitude * decay;
+        mesh.position.set(original.x + dx, original.y, original.z + dz);
+      });
+    });
+  }
+
+  // Briefly shake the active camera target for impact feedback.
+  private shakeCamera(durationMs: number): void {
+    const camera = this.scene.activeCamera as BABYLON.ArcRotateCamera | null;
+    if (!camera || !(camera as any).target) return;
+    const arc = camera as BABYLON.ArcRotateCamera;
+    const originalTarget = arc.target.clone();
+    const start = performance.now();
+    const magnitude = 0.15;
+    const observer = this.scene.onBeforeRenderObservable.add(() => {
+      const elapsed = performance.now() - start;
+      if (elapsed >= durationMs) {
+        arc.setTarget(originalTarget);
+        this.scene.onBeforeRenderObservable.remove(observer);
+        return;
+      }
+      const decay = 1 - elapsed / durationMs;
+      const dx = (Math.random() - 0.5) * magnitude * decay;
+      const dy = (Math.random() - 0.5) * magnitude * decay * 0.5;
+      const dz = (Math.random() - 0.5) * magnitude * decay;
+      arc.setTarget(new BABYLON.Vector3(originalTarget.x + dx, originalTarget.y + dy, originalTarget.z + dz));
+    });
+  }
+
   // Remove a piece with capture animation: fade + sink + scale down + particle burst
   async removePiece(position: Position): Promise<void> {
     const targetMeshes: { mesh: BABYLON.Mesh; key: string }[] = [];
