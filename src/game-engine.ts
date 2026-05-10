@@ -81,24 +81,39 @@ export class GameEngine {
     camera.wheelPrecision = 30;
     camera.panningSensibility = 100;
 
-    // Lighting setup - 3-point lighting
-    // Key light (main directional)
-    const keyLight = new BABYLON.DirectionalLight('keyLight', new BABYLON.Vector3(2, 3, 1));
-    keyLight.intensity = 1.2;
-    keyLight.shadowMinZ = 0;
-    keyLight.shadowMaxZ = 20;
+    // Lighting setup - 3-point lighting with shadow casting
+    // Key light: directional sun-like light pointing down-left for angled shadows.
+    const keyLight = new BABYLON.DirectionalLight('keyLight', new BABYLON.Vector3(-0.5, -1, -0.4), this.scene);
+    keyLight.position = new BABYLON.Vector3(8, 12, 6);
+    keyLight.intensity = 0.5;
+    keyLight.shadowMinZ = 1;
+    keyLight.shadowMaxZ = 30;
 
-    // Fill light
-    const fillLight = new BABYLON.HemisphericLight('fillLight', new BABYLON.Vector3(-1, 1, -1));
-    fillLight.intensity = 0.6;
-    fillLight.diffuse = new BABYLON.Color3(0.8, 0.8, 1);
+    // Shadow generator on the key light (PCF soft shadows)
+    const shadowGenerator = new BABYLON.ShadowGenerator(2048, keyLight);
+    shadowGenerator.usePercentageCloserFiltering = true;
+    shadowGenerator.filteringQuality = BABYLON.ShadowGenerator.QUALITY_MEDIUM;
+    shadowGenerator.bias = 0.0008;
+    shadowGenerator.normalBias = 0.02;
+    shadowGenerator.darkness = 0.35;
+    shadowGenerator.transparencyShadow = false;
 
-    // Back light
-    const backLight = new BABYLON.PointLight('backLight', new BABYLON.Vector3(0, 5, -8));
-    backLight.intensity = 0.4;
+    // Hand the shadow generator to renderers so they can register casters/receivers
+    this.boardRenderer.setShadowGenerator(shadowGenerator);
+    this.pieceRenderer.setShadowGenerator(shadowGenerator);
 
-    // Ambient light
-    this.scene.ambientColor = new BABYLON.Color3(0.4, 0.4, 0.5);
+    // Fill light - softens the shadow side
+    const fillLight = new BABYLON.HemisphericLight('fillLight', new BABYLON.Vector3(-1, 1, -1), this.scene);
+    fillLight.intensity = 0.15;
+    fillLight.diffuse = new BABYLON.Color3(0.8, 0.85, 1);
+    fillLight.groundColor = new BABYLON.Color3(0.1, 0.1, 0.15);
+
+    // Back light - rim light
+    const backLight = new BABYLON.PointLight('backLight', new BABYLON.Vector3(0, 5, -8), this.scene);
+    backLight.intensity = 0.1;
+
+    // Ambient light - low to keep shadows visible
+    this.scene.ambientColor = new BABYLON.Color3(0.1, 0.1, 0.12);
   }
 
   private setupInputHandlers(): void {

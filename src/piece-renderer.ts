@@ -17,6 +17,7 @@ export class PieceRenderer {
   // (key-based lookup breaks after a piece moves because the key encodes old position).
   private currentlySelectedMesh: BABYLON.Mesh | null = null;
   private currentlySelectedColor: 'white' | 'black' | null = null;
+  private shadowGenerator: BABYLON.ShadowGenerator | null = null;
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
@@ -116,6 +117,28 @@ export class PieceRenderer {
     }
   }
 
+  // Set the shadow generator so all created pieces are registered as casters.
+  setShadowGenerator(generator: BABYLON.ShadowGenerator): void {
+    this.shadowGenerator = generator;
+    // Register any already-created pieces (e.g. if pieces were placed before this call).
+    this.pieceMeshes.forEach(mesh => this.registerCasters(mesh));
+  }
+
+  // Add a mesh and all its renderable descendants to the shadow caster list.
+  private registerCasters(rootMesh: BABYLON.Mesh): void {
+    if (!this.shadowGenerator) return;
+    const renderList = this.shadowGenerator.getShadowMap()?.renderList;
+    if (!renderList) return;
+    const addIfRenderable = (m: BABYLON.AbstractMesh) => {
+      // Only meshes with geometry need to cast; empty roots/transforms can be skipped
+      if (m instanceof BABYLON.Mesh && m.getTotalVertices() > 0) {
+        if (!renderList.includes(m)) renderList.push(m);
+      }
+    };
+    addIfRenderable(rootMesh);
+    rootMesh.getChildMeshes().forEach(addIfRenderable);
+  }
+
   // Place pieces on the board
   placePieces(pieces: Piece[]): void {
     if (!this.sardaukarModel) {
@@ -167,6 +190,9 @@ export class PieceRenderer {
       }
 
       this.pieceMeshes.set(key, mesh);
+
+      // Register the new piece (and its children) as a shadow caster
+      this.registerCasters(mesh);
     }
 
     if (mesh) {

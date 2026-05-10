@@ -17,6 +17,8 @@ export class BoardRenderer {
   private lightMaterial: BABYLON.StandardMaterial;
   private darkMaterial: BABYLON.StandardMaterial;
   private highlightMaterials: Map<string, BABYLON.StandardMaterial> = new Map();
+  private shadowGenerator: BABYLON.ShadowGenerator | null = null;
+  private squareMeshes: BABYLON.Mesh[] = [];
 
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
@@ -25,15 +27,14 @@ export class BoardRenderer {
   }
 
   private setupMaterials(): void {
-    // Light square material - bright cream
+    // Light square material - cream colored
     this.lightMaterial = new BABYLON.StandardMaterial('light-square', this.scene);
-    this.lightMaterial.diffuse = new BABYLON.Color3(1.0, 0.95, 0.8);
-    this.lightMaterial.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
-    this.lightMaterial.emissiveColor = new BABYLON.Color3(0.15, 0.13, 0.10);
+    this.lightMaterial.diffuseColor = new BABYLON.Color3(0.85, 0.78, 0.62);
+    this.lightMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
 
-    // Dark square material - much darker for high contrast
+    // Dark square material - dark walnut for high contrast
     this.darkMaterial = new BABYLON.StandardMaterial('dark-square', this.scene);
-    this.darkMaterial.diffuse = new BABYLON.Color3(0.15, 0.08, 0.03);
+    this.darkMaterial.diffuseColor = new BABYLON.Color3(0.12, 0.06, 0.02);
     this.darkMaterial.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
 
     // Highlight materials
@@ -51,6 +52,13 @@ export class BoardRenderer {
     createHighlightMaterial('highlight-last-move', BABYLON.Color3.FromHexString(HIGHLIGHT_COLOR_LAST_MOVE));
   }
 
+  // Set the shadow generator so squares can be registered as receivers (and apply retroactively)
+  setShadowGenerator(generator: BABYLON.ShadowGenerator): void {
+    this.shadowGenerator = generator;
+    // If board already created, mark existing squares as receivers
+    this.squareMeshes.forEach(s => { s.receiveShadows = true; });
+  }
+
   // Create the board geometry
   createBoard(): void {
     const squareGeometry = BABYLON.MeshBuilder.CreateBox('square', { size: SQUARE_SIZE }, this.scene);
@@ -66,6 +74,10 @@ export class BoardRenderer {
 
         // Scale square to be thinner
         square.scaling.y = 0.3;
+
+        // Squares receive shadows from the pieces
+        square.receiveShadows = true;
+        this.squareMeshes.push(square);
       }
     }
 
